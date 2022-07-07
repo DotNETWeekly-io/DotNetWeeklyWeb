@@ -348,3 +348,6 @@ MigrationBackup/
 
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
+src/frontend/build/*
+src/backend/DotnetWeekly/Properties/*
+src/backend/DotnetWeekly/appsettings.Production.json
