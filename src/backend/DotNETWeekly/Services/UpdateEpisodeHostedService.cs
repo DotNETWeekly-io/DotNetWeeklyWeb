@@ -47,10 +47,7 @@
             _logger = logger;
         }
 
-        public void Dispose()
-        {
-            _timer?.Dispose();
-        }
+        public void Dispose() => _timer?.Dispose();
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
@@ -65,9 +62,13 @@
 
         private async void Update(object? state)
         {
+            if (_episodeSyncOption.ContentAPI == null)
+            {
+                return;
+            }
             var httpRequestMessage = new HttpRequestMessage(
                 HttpMethod.Get,
-                "https://api.github.com/repos/DotNETWeekly-io/DotNetWeekly/contents/docs")
+                _episodeSyncOption.ContentAPI)
             {
                 Headers =
                 {
@@ -102,13 +103,18 @@
 
         private async Task UpdateEpisodes(IEnumerable<GithubFile> files,  IEnumerable<EpisodeSummary> episodeSummaries)
         {
-            IEnumerable<string> episodeIds = files.Select(p => p.Id);
-            IEnumerable<string> removedIds = episodeSummaries.Where(p => !episodeIds.Contains(p.id)).Select(p => p.id);
+            ArgumentNullException.ThrowIfNull(files, nameof(files));
+            ArgumentNullException.ThrowIfNull(episodeSummaries, nameof(episodeSummaries));
+            IEnumerable<string?> episodeIds = files.Select(p => p.Id);
+            IEnumerable<string?> removedIds = episodeSummaries.Where(p => !episodeIds.Contains(p.id)).Select(p => p.id);
 
             foreach (var removedId in removedIds)
             {
-                await _episodeSerivce.DeleteEpisodeSummary(removedId, default);
-                await _episodeSerivce.DeleteEpisode(removedId, default);
+                if (removedId != null)
+                {
+                    await _episodeSerivce.DeleteEpisodeSummary(removedId, default);
+                    await _episodeSerivce.DeleteEpisode(removedId, default);
+                }
             }
 
             foreach (var file in files)
@@ -131,7 +137,7 @@
                     {
                         PropertyNameCaseInsensitive = true,
                     });
-                    if (fileContent == null)
+                    if (fileContent == null || fileContent.Content == null)
                     {
                         _logger.LogWarning($"Failed to read {file.Name} content");
                         continue;
@@ -164,22 +170,25 @@
                         var digist = ComputeDigist(fileContent.Content);
                         if (episodeSummary.Digest != digist)
                         {
-                            var imageLink = GetFirstOrDefaultImage(fileContent.Content);
-                            await _episodeSerivce.UpdateEpisodeSummary(file.Id, new EpisodeSummary
+                            var imageLink = GetFirstOrDefaultImage(fileContent.Content) ?? string.Empty;
+                            if (file.Id != null)
                             {
-                                id= file.Id,
-                                Title = file.Title,
-                                Digest = digist,
-                                Image = imageLink,
-                                CreateTime = DateTime.UtcNow,
-                            }, default);
-                            await _episodeSerivce.UpdateEpisode(file.Id, new Episode
-                            {
-                                id = file.Id,
-                                Content = fileContent.Content,
-                                Title = file.Title,
-                                CreateTime = DateTime.UtcNow,
-                            }, default);
+                                await _episodeSerivce.UpdateEpisodeSummary(file.Id, new EpisodeSummary
+                                {
+                                    id= file.Id,
+                                    Title = file.Title,
+                                    Digest = digist,
+                                    Image = imageLink,
+                                    CreateTime = DateTime.UtcNow,
+                                }, default);
+                                await _episodeSerivce.UpdateEpisode(file.Id, new Episode
+                                {
+                                    id = file.Id,
+                                    Content = fileContent.Content,
+                                    Title = file.Title,
+                                    CreateTime = DateTime.UtcNow,
+                                }, default);
+                            }
                         }
                     }
                 }
@@ -202,33 +211,33 @@
 
         private static string ComputeDigist(string content)
         {
-            using (SHA256 sha256 = SHA256.Create())
+            using SHA256 sha256 = SHA256.Create();
+            byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(content));
+            StringBuilder builder = new();
+            for (int i = 0; i < bytes.Length; i++)
             {
-                byte[] bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(content));
-                StringBuilder builder = new StringBuilder();
-                for (int i = 0; i < bytes.Length; i++)
-                {
-                    builder.Append(bytes[i].ToString("x2"));
-                }
-                return builder.ToString();
+                builder.Append(bytes[i].ToString("x2"));
             }
+            return builder.ToString();
         }
 
-        private static string GetFirstOrDefaultImage(string content)
+        private static string? GetFirstOrDefaultImage(string content)
         {
             var doc = Markdig.Markdown.Parse(content);
-            var link = doc.Descendants<ParagraphBlock>().SelectMany(x => x.Inline.Descendants<LinkInline>()).FirstOrDefault(l => l.IsImage);
+            var link = doc.Descendants<ParagraphBlock>().SelectMany(x => 
+                x.Inline?.Descendants<LinkInline>() ?? Enumerable.Empty<LinkInline>())
+                .FirstOrDefault(l => l.IsImage);
             return link?.Url; 
         }
 
         class GithubFile
         {
-            private static Regex regex = new Regex(@"episode-(?<index>\d+)\.md");
+            private static readonly Regex regex = new(@"episode-(?<index>\d+)\.md");
 
-            private string _name;
+            private string? _name;
             public string Name
             {
-                get => _name; 
+                get => _name ?? string.Empty; 
                 set
                 {
                     _name = value;
@@ -236,13 +245,13 @@
                 }
             }
 
-            public string Url { get; set; }
+            public string? Url { get; set; }
 
-            public string Type { get; set; }
+            public string? Type { get; set; }
 
-            public string Id { get; private set; }
+            public string? Id { get; private set; }
 
-            public string Title { get; private set; }
+            public string? Title { get; private set; }
 
             private void ParseEpisode(string name)
             {
@@ -259,7 +268,7 @@
 
         class GithubFileContent
         {
-            public string Content { get; set; }
+            public string? Content { get; set; }
         }
     }
 }

@@ -1,17 +1,16 @@
 ﻿using DotNETWeekly.Models;
+using DotNETWeekly.Options;
 
 using Microsoft.Azure.Cosmos;
+using Microsoft.Extensions.Options;
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
 
 namespace DotNETWeekly.Data
 {
-    using Microsoft.Extensions.Options;
-
-    using Options;
-
     public class CosmosDbEpisodeService : IEpisodeService
     {
         private readonly CosmosDbOptions _options;
@@ -86,14 +85,6 @@ namespace DotNETWeekly.Data
             await container.UpsertItemAsync<EpisodeSummary>(episodeSummary);
         }
 
-        private async Task<Container> GetOrCreateContainer(bool isSummary, bool readOnly, CancellationToken token)
-        {
-            CosmosClient client = new CosmosClient(_options.EndPoint, readOnly ? _options.PrimaryReadOnlyKey :  _options.PrimaryKey);
-            Database database = await client.CreateDatabaseIfNotExistsAsync(_options.DatabaseName, cancellationToken: token);
-            Container container = await database.CreateContainerIfNotExistsAsync( isSummary ? _options.EpisodeSummaryContainer :  _options.EpisodeContainer, "/id", cancellationToken: token);
-            return container;
-        }
-
         public async Task DeleteEpisodeSummary(string id, CancellationToken token)
         {
             var container = await GetOrCreateContainer(true, false, token);
@@ -106,6 +97,20 @@ namespace DotNETWeekly.Data
             var container = await GetOrCreateContainer(false, false, token);
             PartitionKey key = new(id);
             await container.DeleteItemAsync<Episode>(id, key, cancellationToken: token);
+        }
+
+        private async Task<Container> GetOrCreateContainer(bool isSummary, bool readOnly, CancellationToken token)
+        {
+            ArgumentNullException.ThrowIfNull(_options.EndPoint, nameof(_options.EndPoint));
+            ArgumentNullException.ThrowIfNull(_options.PrimaryKey, nameof(_options.PrimaryKey));
+            ArgumentNullException.ThrowIfNull(_options.PrimaryReadOnlyKey, nameof(_options.PrimaryReadOnlyKey));
+            ArgumentNullException.ThrowIfNull(_options.DatabaseName, nameof(_options.DatabaseName));
+            ArgumentNullException.ThrowIfNull(_options.EpisodeSummaryContainer, nameof(_options.EpisodeSummaryContainer));
+            ArgumentNullException.ThrowIfNull(_options.EpisodeContainer, nameof(_options.EpisodeContainer));
+            CosmosClient client = new CosmosClient(_options.EndPoint, readOnly ? _options.PrimaryReadOnlyKey : _options.PrimaryKey);;
+            Database database = await client.CreateDatabaseIfNotExistsAsync(_options.DatabaseName, cancellationToken: token);
+            Container container = await database.CreateContainerIfNotExistsAsync(isSummary ? _options.EpisodeSummaryContainer : _options.EpisodeContainer, "/id", cancellationToken: token);
+            return container;
         }
     }
 }

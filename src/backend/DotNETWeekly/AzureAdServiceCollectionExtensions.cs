@@ -25,17 +25,20 @@ namespace DotNETWeekly
 
         private class ConfigureAzureOptions : IConfigureNamedOptions<JwtBearerOptions>
         {
-            private readonly AzureAdOptions _azureOptions;
+            private readonly AzureAdOptions _azureAdOptions;
 
             public ConfigureAzureOptions(IOptions<AzureAdOptions> azureOptions)
             {
-                _azureOptions = azureOptions.Value;
+                _azureAdOptions = azureOptions.Value;
             }
 
             public void Configure(string name, JwtBearerOptions options)
             {
-                options.Audience = _azureOptions.ClientId;
-                options.Authority = $"{_azureOptions.Instance}{_azureOptions.TenantId}";
+                ArgumentNullException.ThrowIfNull(_azureAdOptions.ClientId, nameof(_azureAdOptions.ClientId));
+                ArgumentNullException.ThrowIfNull(_azureAdOptions.Instance, nameof(_azureAdOptions.Instance));
+                ArgumentNullException.ThrowIfNull(_azureAdOptions.TenantId, nameof(_azureAdOptions.TenantId));
+                options.Audience = _azureAdOptions.ClientId;
+                options.Authority = $"{_azureAdOptions.Instance}{_azureAdOptions.TenantId}";
             }
 
             public void Configure(JwtBearerOptions options)

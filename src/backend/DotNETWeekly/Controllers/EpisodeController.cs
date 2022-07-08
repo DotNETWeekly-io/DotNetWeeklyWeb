@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Extensions.Caching.Memory;
 
+using System;
 using System.Collections.Generic;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,9 @@ namespace DotNETWeekly.Controllers
         private readonly IEpisodeService _episodeService;
 
         private readonly IMemoryCache _cache;
+
+        private readonly MemoryCacheEntryOptions cacheOption = new MemoryCacheEntryOptions()
+            .SetAbsoluteExpiration(TimeSpan.FromHours(6));
 
         public EpisodeController(IEpisodeService episodeService, IMemoryCache cache)
         {
@@ -37,7 +41,7 @@ namespace DotNETWeekly.Controllers
         public async Task<IActionResult> GetEpisode(int episodeId, CancellationToken token)
         {
             Episode? episode;
-            if (_cache.TryGetValue<Episode>(episodeId, out episode))
+            if (_cache.TryGetValue(episodeId, out episode))
             {
                 return Ok(episode);
             }
@@ -46,7 +50,7 @@ namespace DotNETWeekly.Controllers
             {
                 return NotFound();
             }
-            _cache.Set(episodeId, episode);
+            _cache.Set(episodeId, episode, cacheOption);
             return CreatedAtAction(nameof(GetEpisode), episode);
         }
 
