@@ -29,7 +29,7 @@ export class Footer extends React.Component {
                         target="_blank"
                         rel="noreferrer"
                     >
-                        DotnNETWeekly-io/DotNetWeekly
+                        DotNETWeekly-io/DotNetWeekly
                     </a>
                     )，欢迎提交 issue 投稿。
                 </p>
