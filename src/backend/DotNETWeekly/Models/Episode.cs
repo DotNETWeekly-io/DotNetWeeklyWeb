@@ -1,6 +1,7 @@
-﻿namespace DotNETWeekly.Models
+﻿using System;
+
+namespace DotNETWeekly.Models
 {
-    using System;
     public class Episode
     {
         public string? id { get; set; }

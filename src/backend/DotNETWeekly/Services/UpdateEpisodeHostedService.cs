@@ -1,30 +1,27 @@
-﻿namespace DotNETWeekly.Services
+﻿using DotNETWeekly.Data;
+using DotNETWeekly.Models;
+using DotNETWeekly.Options;
+
+using Markdig.Syntax;
+using Markdig.Syntax.Inlines;
+
+using Microsoft.Extensions.Hosting;
+using Microsoft.Extensions.Logging;
+using Microsoft.Extensions.Options;
+
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Net.Http;
+using System.Security.Cryptography;
+using System.Text;
+using System.Text.Json;
+using System.Text.RegularExpressions;
+using System.Threading;
+using System.Threading.Tasks;
+
+namespace DotNETWeekly.Services
 {
-    using Data;
-
-    using Markdig.Syntax;
-    using Markdig.Syntax.Inlines;
-
-    using Microsoft.Extensions.Hosting;
-    using Microsoft.Extensions.Logging;
-    using Microsoft.Extensions.Options;
-    using Microsoft.Net.Http.Headers;
-
-    using Models;
-
-    using Options;
-
-    using System;
-    using System.Collections.Generic;
-    using System.Linq;
-    using System.Net.Http;
-    using System.Security.Cryptography;
-    using System.Text;
-    using System.Text.Json;
-    using System.Text.RegularExpressions;
-    using System.Threading;
-    using System.Threading.Tasks;
-
     public class UpdateEpisodeHostedService : IHostedService, IDisposable
     {
         private readonly ILogger<UpdateEpisodeHostedService> _logger;
@@ -66,19 +63,8 @@
             {
                 return;
             }
-            var httpRequestMessage = new HttpRequestMessage(
-                HttpMethod.Get,
-                _episodeSyncOption.ContentAPI)
-            {
-                Headers =
-                {
-                    { HeaderNames.Accept, "application/vnd.github.v3+json" },
-                    { HeaderNames.UserAgent, "dotnetweekly" }
-                }
-            };
-
             var httpClient = _httpClientFactory.CreateClient();
-            var httpResponseMessage = await httpClient.SendAsync(httpRequestMessage);
+            var httpResponseMessage = await httpClient.GetAsync(_episodeSyncOption.ContentAPI);
             if (httpResponseMessage.IsSuccessStatusCode)
             {
                 _logger.LogInformation("Fetching the episodes successfully.");
@@ -119,16 +105,8 @@
 
             foreach (var file in files)
             {
-                var httpRequestMessage = new HttpRequestMessage(HttpMethod.Get, file.Url)
-                {
-                    Headers =
-                {
-                    { HeaderNames.Accept, "application/vnd.github.v3+json" },
-                    { HeaderNames.UserAgent, "dotnetweekly" }
-                }
-                };
-                var httpClient = _httpClientFactory.CreateClient();
-                var httpResponseMessage = await httpClient.SendAsync(httpRequestMessage);
+                var httpClient = _httpClientFactory.CreateClient("GitHub");
+                var httpResponseMessage = await httpClient.GetAsync(file.Url);
                 if (httpResponseMessage.IsSuccessStatusCode)
                 {
                     _logger.LogInformation($"Fetch {file.Name} successfully");
