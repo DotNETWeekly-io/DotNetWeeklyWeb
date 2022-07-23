@@ -38,7 +38,7 @@
             services.AddMemoryCache();
             services.AddHttpClient("GitHub", client =>
             {
-                client.DefaultRequestHeaders.Accept.ParseAdd("\"application/vnd.github.v3+json\"");
+                client.DefaultRequestHeaders.Accept.ParseAdd("application/vnd.github.v3+json");
                 client.DefaultRequestHeaders.UserAgent.ParseAdd("dotnetweekly");
             });
             services.Configure<EpisodeSyncOption>(Configuration.GetSection("EpisodeSync"));

@@ -63,7 +63,7 @@ namespace DotNETWeekly.Services
             {
                 return;
             }
-            var httpClient = _httpClientFactory.CreateClient();
+            var httpClient = _httpClientFactory.CreateClient("GitHub");
             var httpResponseMessage = await httpClient.GetAsync(_episodeSyncOption.ContentAPI);
             if (httpResponseMessage.IsSuccessStatusCode)
             {
