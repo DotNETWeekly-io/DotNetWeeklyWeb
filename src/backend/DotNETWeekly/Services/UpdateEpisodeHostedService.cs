@@ -75,6 +75,7 @@ namespace DotNETWeekly.Services
                 });
                 if (files == null || files.Length == 0)
                 {
+                    _logger.LogInformation("Empty of docs");
                     return;
                 }
                 files = files.Where(p => p.Name.StartsWith("episode")).ToArray();
@@ -83,7 +84,7 @@ namespace DotNETWeekly.Services
             }
             else
             {
-                _logger.LogWarning($"Failed to fetch the episodes. status code {httpResponseMessage.StatusCode}");
+                _logger.LogError($"Failed to fetch the episodes. Request URL: {_episodeSyncOption.ContentAPI}, response status code {httpResponseMessage.StatusCode}");
             }
         }
 
@@ -172,7 +173,7 @@ namespace DotNETWeekly.Services
                 }
                 else
                 {
-                    _logger.LogWarning($"Failed to fetch {file.Name}. Status code {httpResponseMessage.StatusCode}");
+                    _logger.LogError($"Failed to fetch {file.Name}. Status code {httpResponseMessage.StatusCode}");
                 }
             }
 

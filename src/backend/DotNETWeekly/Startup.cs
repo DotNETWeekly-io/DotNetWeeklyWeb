@@ -1,18 +1,16 @@
-﻿namespace DotNETWeekly
+﻿using DotNETWeekly.Data;
+using DotNETWeekly.Options;
+using DotNETWeekly.Services;
+
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Options;
+
+namespace DotNETWeekly
 {
-    using Data;
-
-    using Microsoft.AspNetCore.Authentication.JwtBearer;
-    using Microsoft.AspNetCore.Builder;
-    using Microsoft.AspNetCore.Hosting;
-    using Microsoft.Extensions.Configuration;
-    using Microsoft.Extensions.DependencyInjection;
-    using Microsoft.Extensions.Options;
-
-    using Options;
-
-    using Services;
-
     public class Startup
     {
         public Startup(IConfiguration configuration)
@@ -29,6 +27,7 @@
                 sharedOptions.DefaultScheme = JwtBearerDefaults.AuthenticationScheme;
             })
             .AddAzureAdBearer(options => Configuration.Bind("AzureAd", options));
+            services.AddApplicationInsightsTelemetry();
             services.AddMvc();
             services.AddEndpointsApiExplorer();
             services.AddCors(option => option.AddPolicy("CorsPolicy", builder=>
