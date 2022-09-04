@@ -30,7 +30,9 @@ namespace DotNETWeekly.Services
 
         private readonly EpisodeSyncOption _episodeSyncOption;
 
-        private Timer? _timer;
+        private PeriodicTimer? _timer;
+
+        private Task? _timerTask;
 
         public UpdateEpisodeHostedService(
             IHttpClientFactory httpClientFactory,
@@ -48,23 +50,40 @@ namespace DotNETWeekly.Services
 
         public Task StartAsync(CancellationToken cancellationToken)
         {
-            if (_episodeSyncOption.Enabled)
+            if (_episodeSyncOption.Enabled && !string.IsNullOrWhiteSpace(_episodeSyncOption.ContentAPI))
             {
                 _logger.LogInformation("Updating episodes");
-                _timer = new Timer(Update, null, TimeSpan.Zero, TimeSpan.FromDays(1));
+                _timer = new PeriodicTimer(TimeSpan.FromDays(1));
+                _timerTask = Start(cancellationToken);
             }
 
             return Task.CompletedTask;
         }
 
-        private async void Update(object? state)
+        private async Task Start(CancellationToken token)
         {
-            if (_episodeSyncOption.ContentAPI == null)
+            if (_timer is null)
             {
                 return;
             }
+            try
+            {
+                while(await _timer.WaitForNextTickAsync(token) &&
+                    !token.IsCancellationRequested)
+                {
+                    await Update(token);
+                }
+            }
+            catch (OperationCanceledException)
+            {
+                _logger.LogError("Update sync job was cancelled.");
+            }
+        }
+
+        private async Task Update(CancellationToken token)
+        {
             var httpClient = _httpClientFactory.CreateClient("GitHub");
-            var httpResponseMessage = await httpClient.GetAsync(_episodeSyncOption.ContentAPI);
+            var httpResponseMessage = await httpClient.GetAsync(_episodeSyncOption.ContentAPI, token);
             if (httpResponseMessage.IsSuccessStatusCode)
             {
                 _logger.LogInformation("Fetching the episodes successfully.");
@@ -72,15 +91,15 @@ namespace DotNETWeekly.Services
                 var files = await JsonSerializer.DeserializeAsync<GithubFile[]>(contentStream, new JsonSerializerOptions()
                 {
                     PropertyNameCaseInsensitive = true,
-                });
+                }, cancellationToken:token);
                 if (files == null || files.Length == 0)
                 {
                     _logger.LogInformation("Empty of docs");
                     return;
                 }
                 files = files.Where(p => p.Name.StartsWith("episode")).ToArray();
-                var episodeSummaries = await _episodeSerivce.GetEpisodeSummaries(default);
-                await UpdateEpisodes(files, episodeSummaries);
+                var episodeSummaries = await _episodeSerivce.GetEpisodeSummaries(token);
+                await UpdateEpisodes(files, episodeSummaries, token);
             }
             else
             {
@@ -88,7 +107,7 @@ namespace DotNETWeekly.Services
             }
         }
 
-        private async Task UpdateEpisodes(IEnumerable<GithubFile> files,  IEnumerable<EpisodeSummary> episodeSummaries)
+        private async Task UpdateEpisodes(IEnumerable<GithubFile> files,  IEnumerable<EpisodeSummary> episodeSummaries, CancellationToken token)
         {
             ArgumentNullException.ThrowIfNull(files, nameof(files));
             ArgumentNullException.ThrowIfNull(episodeSummaries, nameof(episodeSummaries));
@@ -97,17 +116,19 @@ namespace DotNETWeekly.Services
 
             foreach (var removedId in removedIds)
             {
+                token.ThrowIfCancellationRequested();
                 if (removedId != null)
                 {
-                    await _episodeSerivce.DeleteEpisodeSummary(removedId, default);
-                    await _episodeSerivce.DeleteEpisode(removedId, default);
+                    await _episodeSerivce.DeleteEpisodeSummary(removedId, token);
+                    await _episodeSerivce.DeleteEpisode(removedId, token);
                 }
             }
 
             foreach (var file in files)
             {
+                token.ThrowIfCancellationRequested();
                 var httpClient = _httpClientFactory.CreateClient("GitHub");
-                var httpResponseMessage = await httpClient.GetAsync(file.Url);
+                var httpResponseMessage = await httpClient.GetAsync(file.Url, token);
                 if (httpResponseMessage.IsSuccessStatusCode)
                 {
                     _logger.LogInformation($"Fetch {file.Name} successfully");
@@ -115,14 +136,14 @@ namespace DotNETWeekly.Services
                     var fileContent = await JsonSerializer.DeserializeAsync<GithubFileContent>(contentStream, new JsonSerializerOptions()
                     {
                         PropertyNameCaseInsensitive = true,
-                    });
+                    }, token);
                     if (fileContent == null || fileContent.Content == null)
                     {
                         _logger.LogWarning($"Failed to read {file.Name} content");
                         continue;
                     }
 
-                    fileContent.Content = System.Text.Encoding.UTF8.GetString(System.Convert.FromBase64String(fileContent.Content));
+                    fileContent.Content = Encoding.UTF8.GetString(Convert.FromBase64String(fileContent.Content));
                     var episodeSummary = episodeSummaries.FirstOrDefault(p => p.id == file.Id);
                     if (episodeSummary == null)
                     {
@@ -135,14 +156,14 @@ namespace DotNETWeekly.Services
                             Digest = digist,
                             Image = imageLink,
                             CreateTime = DateTime.UtcNow,
-                        }, default);
+                        }, token);
                         await _episodeSerivce.AddEpisode(new Episode
                         {
                             id = file.Id,
                             Content = fileContent.Content,
                             Title = file.Title,
                             CreateTime = DateTime.UtcNow,
-                        }, default);
+                        }, token);
                     }
                     else
                     {
@@ -159,14 +180,14 @@ namespace DotNETWeekly.Services
                                     Digest = digist,
                                     Image = imageLink,
                                     CreateTime = DateTime.UtcNow,
-                                }, default);
+                                }, token);
                                 await _episodeSerivce.UpdateEpisode(file.Id, new Episode
                                 {
                                     id = file.Id,
                                     Content = fileContent.Content,
                                     Title = file.Title,
                                     CreateTime = DateTime.UtcNow,
-                                }, default);
+                                }, token);
                             }
                         }
                     }
@@ -180,12 +201,16 @@ namespace DotNETWeekly.Services
             
         }
 
-        public Task StopAsync(CancellationToken cancellationToken)
+        public async Task StopAsync(CancellationToken cancellationToken)
         {
-            _logger.LogInformation("Stopping updating the episode");
-            _timer?.Change(Timeout.Infinite, 0);
+            if (_timerTask is null)
+            {
+                return;
+            }
 
-            return Task.CompletedTask;
+            _logger.LogInformation("Stopping updating the episode");
+            await _timerTask;
+
         }
 
         private static string ComputeDigist(string content)
