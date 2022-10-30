@@ -53,7 +53,7 @@ namespace DotNETWeekly.Services
             if (_episodeSyncOption.Enabled && !string.IsNullOrWhiteSpace(_episodeSyncOption.ContentAPI))
             {
                 _logger.LogInformation("Updating episodes");
-                _timer = new PeriodicTimer(TimeSpan.FromDays(1));
+                _timer = new PeriodicTimer(TimeSpan.FromHours(1));
                 _timerTask = Start(cancellationToken);
             }
 

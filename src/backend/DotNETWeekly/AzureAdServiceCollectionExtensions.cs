@@ -1,15 +1,15 @@
 ﻿
+using DotNETWeekly.Options;
+
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Options;
 
 using System;
-using Microsoft.Extensions.DependencyInjection;
 
 namespace DotNETWeekly
 {
-    using Options;
-
     public static class AzureAdServiceCollectionExtensions
     {
         public static AuthenticationBuilder AddAzureAdBearer(this AuthenticationBuilder builder)
